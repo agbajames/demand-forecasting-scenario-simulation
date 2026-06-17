@@ -20,7 +20,7 @@ NESO publishes Historic Demand Data as separate annual CSV resources rather than
 
 ## Current phase
 
-This first phase focuses only on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. It deliberately avoids forecasting models and scenario simulation code until the dataset is understood.
+The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 establishes clean baseline forecasting performance before any more advanced modelling is introduced.
 
 ## Planned workflow
 
@@ -30,7 +30,8 @@ This first phase focuses only on project setup, NESO data ingestion, data profil
 4. Analyse missingness, duplicates, gaps, outliers and shocks.
 5. Identify seasonal patterns and a suitable modelling frequency.
 6. Produce written EDA conclusions and modelling recommendations.
-7. In later phases, compare forecasting models and add scenario simulation.
+7. Establish baseline forecasting performance.
+8. In later phases, compare more advanced forecasting models and add scenario simulation.
 
 ## Future modelling plan
 
@@ -48,14 +49,18 @@ data/
   processed/    # future cleaned modelling-ready data
 notebooks/
   01_deep_eda.ipynb
+  02_baseline_forecasting.ipynb
 outputs/
   figures/eda/  # generated EDA charts
+  figures/modelling/  # generated baseline forecasting charts
   tables/       # generated resource and EDA summary tables
 reports/
   eda_summary.md
+  baseline_forecasting_summary.md
 src/
   ingest_neso.py
   prepare_data.py
+  baseline_models.py
   eda.py
   utils.py
 ```
@@ -107,6 +112,29 @@ python src/prepare_data.py --target tsd --output data/processed/daily_demand_201
 ```
 
 The preparation workflow preserves the raw annual CSVs and the combined raw half-hourly file. It uses `data/raw/selected_resource_info.json` to locate the combined raw dataset, validates or recreates `settlement_datetime`, writes `outputs/tables/duplicate_settlement_datetime_audit.csv`, resolves duplicated half-hourly timestamps with explicit aggregation rules, and saves `data/processed/daily_demand_2019_2025.csv`.
+
+## Run baseline forecasting
+
+Phase 2 establishes baseline forecasting performance on the processed daily dataset before SARIMAX, Prophet, machine learning or simulation models are considered.
+
+```bash
+python src/baseline_models.py --target nd_mean
+```
+
+The full current workflow is:
+
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+```
+
+Baseline outputs include:
+
+- `outputs/tables/baseline_model_comparison.csv`
+- `outputs/tables/baseline_forecasts.csv`
+- `outputs/figures/modelling/actual_vs_baseline_forecasts.png`
+- `outputs/figures/modelling/forecast_errors_by_model.png`
 
 ## Run the EDA notebook
 

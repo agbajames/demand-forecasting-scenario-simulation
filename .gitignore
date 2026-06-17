@@ -24,5 +24,7 @@ venv/
 # Generated EDA artefacts
 /outputs/figures/eda/*
 !/outputs/figures/eda/.gitkeep
+/outputs/figures/modelling/*
+!/outputs/figures/modelling/.gitkeep
 /outputs/tables/*
 !/outputs/tables/.gitkeep
