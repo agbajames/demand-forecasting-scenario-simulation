@@ -16,7 +16,7 @@ The primary source is the NESO Historic Demand Data package exposed through the 
 
 <https://api.neso.energy/api/3/action/datapackage_show?id=historic-demand-data>
 
-The ingestion script saves the package metadata, creates a resource inventory and attempts to download the most relevant raw CSV demand-observation resource without overwriting or transforming the raw source content.
+NESO publishes Historic Demand Data as separate annual CSV resources rather than one single historic file. The ingestion script saves the package metadata, creates a resource inventory, identifies annual historic demand CSVs, downloads the selected year range and creates a combined raw CSV for EDA.
 
 ## Current phase
 
@@ -24,7 +24,7 @@ This first phase focuses only on project setup, NESO data ingestion, data profil
 
 ## Planned workflow
 
-1. Ingest NESO package metadata and raw demand data.
+1. Ingest NESO package metadata and annual raw demand data.
 2. Profile the raw dataset structure and data quality.
 3. Discover actual date/time, demand and external-variable columns from the data.
 4. Analyse missingness, duplicates, gaps, outliers and shocks.
@@ -73,12 +73,22 @@ pip install -r requirements.txt
 python src/ingest_neso.py
 ```
 
+By default, ingestion downloads recent complete annual files from 2019 to the latest complete year available. With the current NESO resource list and a 2026 run date, this means 2019-2025; the partial 2026 resource is excluded unless explicitly requested.
+
+Custom year ranges can be supplied from the command line:
+
+```bash
+python src/ingest_neso.py --start-year 2001 --end-year 2025
+python src/ingest_neso.py --start-year 2024 --end-year 2026 --include-partial-current-year
+```
+
 Expected outputs include:
 
 - `data/raw/neso_package_metadata.json`
 - `outputs/tables/neso_resource_inventory.csv`
-- `data/raw/selected_resource_info.json` if a resource is selected confidently
-- a raw downloaded NESO data file in `data/raw/` if a suitable resource is identified
+- `data/raw/selected_resource_info.json` documenting the selected annual resources
+- annual raw downloaded NESO CSV files in `data/raw/`
+- a combined raw dataset such as `data/raw/neso_historic_demand_2019_2025.csv`
 
 ## Run the EDA notebook
 
@@ -92,8 +102,8 @@ Then run the notebook cells in order after the ingestion script has completed. T
 
 ## Project limitations
 
-- The raw NESO resource selection is heuristic and may require manual confirmation if the package structure changes.
-- EDA recommendations are provisional until the latest raw data file has been downloaded and profiled.
+- Annual NESO resource detection uses the published name and URL patterns and may require manual confirmation if the package structure changes.
+- EDA recommendations are provisional until the selected annual raw files and combined dataset have been downloaded and profiled.
 - Weather, holidays and market variables are not yet integrated.
 - No forecasting model or simulation layer is included in this phase.
 - Raw data files can be large and are not committed by default.
