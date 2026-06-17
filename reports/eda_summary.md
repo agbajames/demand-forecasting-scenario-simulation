@@ -1,72 +1,106 @@
-# EDA Summary – NESO Historic Demand Data
+# EDA Summary - NESO Historic Demand Data
 
-## Executive summary
+## Executive Summary
 
-This EDA phase is designed to establish a reliable foundation before any forecasting or simulation work begins. It focuses on NESO historic demand metadata ingestion, raw data discovery, column profiling, target-variable selection and data-quality assessment. The recommended target variable, modelling frequency and candidate external regressors should be confirmed by running `notebooks/01_deep_eda.ipynb` against the downloaded raw NESO file.
+The EDA was run against the combined NESO Historic Demand dataset covering 2019-2025. The dataset contains 122,736 rows and 23 columns, representing half-hourly settlement-period observations rather than one observation per calendar date.
 
-This EDA phase suggests that daily demand may be a practical modelling frequency for the first version of the forecasting pipeline if the downloaded data is sub-daily and noisy. It can preserve the main operational demand pattern while reducing computational complexity. However, half-hourly or hourly modelling should remain under consideration if data quality, business requirements and seasonality diagnostics support it. The recommended target variable is subject to confirmation from the discovered NESO columns, missingness checks and data dictionary review.
+The main data preparation finding is that `settlement_date` alone is not a valid modelling timestamp. Repeated `settlement_date` values are expected because each day contains multiple settlement periods. The correct timestamp for time-series analysis is `settlement_datetime`, created from `settlement_date` and `settlement_period`.
 
-## Dataset overview
+This phase remains limited to data ingestion, profiling and EDA. No forecasting model, Prophet, SARIMAX or simulation layer has been added.
 
-The dataset is sourced from the NESO Historic Demand Data CKAN package. The ingestion script stores full package metadata, creates a clean resource inventory and attempts to download a relevant raw CSV file containing historic demand observations. The EDA notebook then inspects the actual raw file structure rather than assuming specific column names.
+## Dataset Overview
 
-## Data quality findings
+The source data is the NESO Historic Demand Data package. The ingestion workflow now combines annual CSV resources into `data/raw/neso_historic_demand_2019_2025.csv`, while retaining the raw annual files separately.
 
-The notebook should be used to document:
+The current combined dataset covers selected years 2019-2025 and contains half-hourly settlement data. Settlement period 1 maps to 00:00, period 2 to 00:30 and period 48 to 23:30. Clock-change days may contain non-standard settlement-period counts, so these cases should be inspected rather than removed automatically.
 
-- column names, data types and example values;
-- missing values by column and over time;
-- duplicate rows and duplicate timestamps;
-- timestamp gaps relative to the inferred frequency;
-- suspicious zero or negative demand values;
-- unusually high or low demand observations.
+## Data Quality Findings
 
-Rows and columns should not be dropped silently. Any exclusions in later phases should be explicit, reproducible and justified.
+The local EDA found no missing values in the main candidate demand target columns: `nd`, `tsd` and `england_wales_demand`.
 
-## Recommended target variable
+Duplicate `settlement_date` values are expected and should not be treated as duplicate observations. Duplicate timestamp checks should instead use `settlement_datetime`, which combines settlement date and period into a half-hourly time index.
 
-The primary target should be selected from numeric columns whose names and profiles indicate demand concepts such as national demand, transmission system demand, total demand or electricity load. Selection should consider operational meaning, continuity, missingness, outlier behaviour and whether the series aligns with the intended forecasting question.
+No zero or negative values were found in the provisional target `nd`. IQR screening detected 226 high-demand observations. These should be documented and monitored in later modelling rather than removed automatically.
 
-## Recommended modelling frequency
+COVID-era rows are present in the 2019-2025 dataset. They should be retained because they are genuine historical observations, but later validation and scenario design should consider whether COVID-era demand behaviour creates structural-break risk.
 
-The recommended modelling frequency should be based on the inferred timestamp interval, missingness, duplicate timestamps, operational use case and seasonal diagnostics. Candidate frequencies include half-hourly, hourly, daily and weekly. Daily modelling may be an appropriate first baseline if it reduces sub-daily noise while retaining useful seasonality.
+## Recommended Target Variable
 
-## Key seasonal patterns
+The candidate demand targets are:
 
-The notebook analyses daily, day-of-week, weekday-versus-weekend, monthly and year-on-year patterns where supported by the timestamp frequency. Later modelling should encode the strongest repeatable patterns identified during this phase.
+- `nd`
+- `tsd`
+- `england_wales_demand`
 
-## Outliers and anomalies
+The current recommendation is to choose either `nd` or `tsd`, depending on the operational question being modelled. `nd` is a strong candidate for a national demand forecasting target and has no missing or non-positive values in the current EDA. `tsd` may be preferable if the intended use case is closer to transmission-system demand and operational balancing requirements.
 
-Extreme observations should be detected using IQR and, where useful, z-score logic. The EDA should flag unusually high or low demand periods and visible shock periods such as COVID-era changes if the date range includes them. Outliers should be documented, not automatically removed.
+`england_wales_demand` is also a legitimate demand series, but it is geographically narrower and may be less suitable if the project objective is GB-wide operational demand planning.
 
-## Candidate external variables
+Embedded wind generation, embedded wind capacity, embedded solar generation and embedded solar capacity should not be treated as demand targets. They are candidate external variables.
 
-Potential external regressors already present in the NESO data may include embedded wind generation, embedded solar generation, interconnector flows, hydro storage pumping, STOR and other supply or balancing variables. Candidate variables should be assessed using missingness, correlation with the target and simple lag checks. The strongest candidates can be considered later for SARIMAX-style models.
+## Recommended Modelling Frequency
 
-## Recommended train/test and rolling-origin validation setup
+The native NESO data is half-hourly. `settlement_datetime` should be used as the modelling timestamp for all native-frequency analysis.
 
-A chronological split should be used, avoiding random shuffling. A sensible first approach is to reserve the most recent contiguous period as a holdout set and use rolling-origin validation on the earlier history. The exact split should reflect the selected modelling frequency and the amount of clean history available.
+Daily aggregation may still be a practical first modelling frequency. It can reduce half-hourly volatility and computational complexity while preserving major weekly, seasonal and annual demand patterns. The raw half-hourly data should remain available so later phases can compare daily baselines with higher-resolution modelling if needed.
 
-## Recommended scenario simulation assumptions
+## Key Seasonal Patterns
 
-Initial simulation assumptions should be grounded in EDA findings, including target volatility, seasonal variance, outlier frequency and shock periods. Later Monte Carlo scenarios may use residual distributions from fitted models, stress multipliers, seasonal demand uplift factors and explicit low/high demand cases.
+The dataset supports analysis of intraday, day-of-week, monthly and year-on-year demand patterns. Half-hourly observations are especially useful for identifying within-day peaks and troughs, while daily aggregation may be useful for a first modelling baseline.
 
-## Capacity breach probability approach
+Later modelling should encode the strongest repeatable patterns identified in the notebook, including daily shape, weekday/weekend differences and seasonal demand variation.
 
-A later capacity-risk layer can compare simulated demand paths with one or more capacity thresholds. The output should be the estimated probability that demand exceeds a chosen threshold over a defined horizon, with sensitivity analysis across threshold levels and stress assumptions.
+## Outliers and Anomalies
 
-## Risks and limitations
+IQR screening found 226 high-demand observations. These should be reviewed in context, particularly around winter peak demand periods, but should not be removed automatically.
 
-- Resource selection depends on NESO package metadata and may need manual review.
-- Column names and meanings must be verified from the actual data and NESO documentation.
-- Demand can be affected by weather, holidays, economic activity and exceptional shocks not yet integrated.
-- Correlation analysis does not prove causal relationships.
-- Deep learning models may be unnecessary unless simpler baselines underperform and sufficient clean history is available.
+COVID-era observations are present and should be retained. They may affect model validation and should be monitored as a potential shock or structural-break period.
 
-## Next steps
+## Candidate External Variables
 
-1. Run `python src/ingest_neso.py`.
-2. Open and execute `notebooks/01_deep_eda.ipynb` from top to bottom.
-3. Confirm the recommended demand target and modelling frequency.
-4. Update this report with concrete EDA outputs from the downloaded dataset.
-5. Build baseline forecasting models only after the EDA findings are reviewed.
+Likely external variables already available in the NESO dataset include:
+
+- embedded wind generation
+- embedded wind capacity
+- embedded solar generation
+- embedded solar capacity
+- pumped storage or hydro pumping variables
+- interconnector flow variables
+- other supply or balancing fields present in the annual files
+
+These variables may be useful later for SARIMAX-style regressors or scenario analysis, subject to missingness, correlation and lag diagnostics.
+
+## Recommended Train/Test and Rolling-Origin Validation Setup
+
+Use chronological splits only. Random shuffling would leak future information into training data.
+
+A sensible first approach is to reserve the most recent contiguous period as a holdout set, then use rolling-origin validation over earlier history. If the first modelling version uses daily aggregation, the validation folds should also be daily. If later phases retain half-hourly resolution, the validation design should respect the native half-hourly timestamp sequence.
+
+## Recommended Scenario Simulation Assumptions
+
+Scenario assumptions should be grounded in the EDA findings: seasonal demand variation, half-hourly volatility, winter peak behaviour, COVID-era shock periods and the observed frequency of high-demand outliers.
+
+The raw half-hourly dataset should be retained so later scenario work can test whether capacity-risk assumptions differ between daily and half-hourly demand views.
+
+## Capacity Breach Probability Approach
+
+A later capacity-risk layer can compare simulated demand paths with one or more capacity thresholds. The output should estimate the probability that demand exceeds a threshold over a defined horizon, with sensitivity analysis across threshold levels, seasonal stress assumptions and demand-shock scenarios.
+
+No Monte Carlo simulation has been implemented in this phase.
+
+## Risks and Limitations
+
+- `settlement_datetime` must be used for time-series checks; `settlement_date` alone is not unique.
+- Clock-change days may contain non-standard settlement-period counts and should be reviewed carefully.
+- Target choice between `nd` and `tsd` should be confirmed against the NESO data dictionary and the intended operational use case.
+- COVID-era behaviour may affect validation results and model stability.
+- Correlation analysis for external variables does not prove causality.
+- Weather, holidays and wider economic drivers are not yet integrated.
+
+## Next Steps
+
+1. Re-run `python src/ingest_neso.py` if the raw annual files or combined dataset need refreshing.
+2. Re-run `notebooks/01_deep_eda.ipynb` from top to bottom so the notebook uses `settlement_datetime`.
+3. Confirm the target choice between `nd` and `tsd`.
+4. Keep outliers and COVID-era rows in the dataset, but document their effect on model validation.
+5. Build baseline forecasting models only after the corrected EDA outputs are reviewed.

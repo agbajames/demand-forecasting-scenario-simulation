@@ -39,6 +39,38 @@ def standardise_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return output
 
 
+def create_neso_datetime(
+    df: pd.DataFrame,
+    date_column: str = "settlement_date",
+    settlement_period_column: str = "settlement_period",
+    output_column: str = "settlement_datetime",
+) -> pd.DataFrame:
+    """Create a half-hourly NESO settlement timestamp without overwriting source columns.
+
+    NESO historic demand data uses one settlement date with multiple half-hourly
+    settlement periods. Period 1 starts at 00:00, period 2 at 00:30 and period
+    48 at 23:30. Clock-change days can contain non-standard period counts, so
+    periods above 48 are retained by adding the corresponding half-hour offset
+    rather than dropping or clipping them.
+    """
+    missing_columns = [column for column in [date_column, settlement_period_column] if column not in df.columns]
+    if missing_columns:
+        raise KeyError(f"Missing NESO timestamp column(s): {missing_columns}")
+
+    output = df.copy()
+    date_values = output[date_column].astype("string").str.strip()
+    parsed_dates = pd.to_datetime(date_values, format="%d-%b-%Y", errors="coerce")
+    fallback_dates = pd.to_datetime(date_values, format="%Y-%m-%d", errors="coerce")
+    parsed_dates = parsed_dates.fillna(fallback_dates)
+    parsed_dates = parsed_dates.fillna(pd.to_datetime(date_values, errors="coerce"))
+
+    settlement_periods = pd.to_numeric(output[settlement_period_column], errors="coerce")
+    valid_periods = settlement_periods.ge(1)
+    half_hour_offsets = pd.to_timedelta((settlement_periods.where(valid_periods) - 1) * 30, unit="m")
+    output[output_column] = parsed_dates + half_hour_offsets
+    return output
+
+
 def summarise_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Summarise column types, non-null counts, uniqueness, and sample values."""
     return pd.DataFrame(
@@ -57,7 +89,11 @@ def summarise_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 def detect_datetime_columns(df: pd.DataFrame, sample_size: int = 1000) -> list[str]:
     """Identify columns that are already datetime typed or parse as dates in a sample."""
     candidates: list[str] = []
+    if "settlement_datetime" in df.columns:
+        candidates.append("settlement_datetime")
     for column in df.columns:
+        if column in candidates:
+            continue
         series = df[column].dropna().head(sample_size)
         if pd.api.types.is_datetime64_any_dtype(df[column]):
             candidates.append(column)
@@ -106,9 +142,19 @@ def identify_numeric_columns(df: pd.DataFrame) -> list[str]:
 
 def identify_candidate_demand_columns(df: pd.DataFrame) -> list[str]:
     """Find numeric columns with names suggesting electricity demand concepts."""
-    terms = ["demand", "load", "nd", "tsd", "transmission", "national", "total"]
     numeric = identify_numeric_columns(df)
-    return [col for col in numeric if any(term in col.lower() for term in terms)]
+    preferred_targets = ["nd", "tsd", "england_wales_demand"]
+    candidates = [column for column in preferred_targets if column in numeric]
+
+    excluded_terms = ["embedded_wind", "embedded_solar", "generation", "capacity"]
+    demand_terms = ["demand", "load", "transmission", "national", "total"]
+    for column in numeric:
+        column_lower = column.lower()
+        if column in candidates or any(term in column_lower for term in excluded_terms):
+            continue
+        if any(term in column_lower for term in demand_terms):
+            candidates.append(column)
+    return candidates
 
 
 def _save_plot(output_path: str | Path) -> None:
