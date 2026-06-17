@@ -20,7 +20,7 @@ NESO publishes Historic Demand Data as separate annual CSV resources rather than
 
 ## Current phase
 
-The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons. Phase 4 tests feature-engineered models for high-demand-aware forecasting.
+The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons. Phase 4 tests feature-engineered models for high-demand-aware forecasting. Phase 4B validates the forecast design so one-day-ahead operational results are not confused with strict multi-step forecasts.
 
 ## Planned workflow
 
@@ -34,7 +34,8 @@ The first phase focused on project setup, NESO data ingestion, data profiling an
 8. Compare practical SARIMA and SARIMAX statistical models against the seasonal naive benchmark.
 9. Diagnose model errors and refine benchmark understanding.
 10. Test lag, rolling, calendar and exogenous feature models with high-demand regime evaluation.
-11. In later phases, compare more advanced forecasting models and add scenario simulation.
+11. Validate feature availability, leakage risk and strict recursive forecast design.
+12. In later phases, compare more advanced forecasting models and add scenario simulation.
 
 ## Future modelling plan
 
@@ -56,6 +57,7 @@ notebooks/
   03_statistical_forecasting.ipynb
   04_model_diagnostics.ipynb
   05_feature_modelling.ipynb
+  06_forecast_design_validation.ipynb
 outputs/
   figures/eda/  # generated EDA charts
   figures/modelling/  # generated baseline forecasting charts
@@ -66,6 +68,7 @@ reports/
   statistical_forecasting_summary.md
   model_diagnostics_summary.md
   feature_modelling_summary.md
+  forecast_design_validation_summary.md
 src/
   ingest_neso.py
   prepare_data.py
@@ -73,6 +76,7 @@ src/
   statistical_models.py
   model_diagnostics.py
   feature_models.py
+  forecast_validation.py
   eda.py
   utils.py
 ```
@@ -236,6 +240,44 @@ Feature modelling outputs include:
 - `outputs/figures/modelling/feature_model_mape_comparison.png`
 - `outputs/figures/modelling/feature_model_regime_mape_comparison.png`
 - `outputs/figures/modelling/feature_importance_top20.png`
+
+## Validate forecast design
+
+Phase 4B separates two forecast-design questions. The Phase 4 feature-model results should be described as operational one-day-ahead forecasts because each 2025 forecast can use actual demand observed up to the previous day. A strict multi-step forecast must recursively generate lag and rolling target features after the first test day rather than using actual future target values. Exogenous variables must also be known, forecasted or scenario-specified at forecast time; otherwise they are retrospective inputs.
+
+```bash
+python src/forecast_validation.py --target nd_mean
+```
+
+Optional strict recursive exogenous modes:
+
+```bash
+python src/forecast_validation.py --target nd_mean --strict-exog-mode drop
+python src/forecast_validation.py --target nd_mean --strict-exog-mode actual
+```
+
+The full modelling workflow is:
+
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+python src/statistical_models.py --target nd_mean
+python src/model_diagnostics.py --target nd_mean
+python src/feature_models.py --target nd_mean
+python src/forecast_validation.py --target nd_mean
+```
+
+Forecast-design validation outputs include:
+
+- `outputs/tables/feature_availability_audit.csv`
+- `outputs/tables/operational_forecast_design_summary.csv`
+- `outputs/tables/strict_recursive_feature_forecasts.csv`
+- `outputs/tables/forecast_design_comparison.csv`
+- `outputs/tables/strict_recursive_regime_comparison.csv`
+- `outputs/figures/modelling/forecast_design_mape_comparison.png`
+- `outputs/figures/modelling/strict_recursive_actual_vs_forecast.png`
+- `outputs/figures/modelling/strict_recursive_regime_mape_comparison.png`
 
 ## Run the EDA notebook
 
