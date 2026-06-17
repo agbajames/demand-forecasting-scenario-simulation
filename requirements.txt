@@ -5,6 +5,7 @@ matplotlib
 seaborn
 statsmodels
 scipy
+scikit-learn
 jupyter
 notebook
 python-dotenv

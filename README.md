@@ -20,7 +20,7 @@ NESO publishes Historic Demand Data as separate annual CSV resources rather than
 
 ## Current phase
 
-The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons.
+The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons. Phase 4 tests feature-engineered models for high-demand-aware forecasting.
 
 ## Planned workflow
 
@@ -33,7 +33,8 @@ The first phase focused on project setup, NESO data ingestion, data profiling an
 7. Establish baseline forecasting performance.
 8. Compare practical SARIMA and SARIMAX statistical models against the seasonal naive benchmark.
 9. Diagnose model errors and refine benchmark understanding.
-10. In later phases, compare more advanced forecasting models and add scenario simulation.
+10. Test lag, rolling, calendar and exogenous feature models with high-demand regime evaluation.
+11. In later phases, compare more advanced forecasting models and add scenario simulation.
 
 ## Future modelling plan
 
@@ -54,6 +55,7 @@ notebooks/
   02_baseline_forecasting.ipynb
   03_statistical_forecasting.ipynb
   04_model_diagnostics.ipynb
+  05_feature_modelling.ipynb
 outputs/
   figures/eda/  # generated EDA charts
   figures/modelling/  # generated baseline forecasting charts
@@ -63,12 +65,14 @@ reports/
   baseline_forecasting_summary.md
   statistical_forecasting_summary.md
   model_diagnostics_summary.md
+  feature_modelling_summary.md
 src/
   ingest_neso.py
   prepare_data.py
   baseline_models.py
   statistical_models.py
   model_diagnostics.py
+  feature_models.py
   eda.py
   utils.py
 ```
@@ -201,6 +205,37 @@ Diagnostic outputs include:
 - `outputs/figures/modelling/statistical_residual_autocorrelation.png`
 - `outputs/figures/modelling/exogenous_target_correlation.png`
 - `outputs/figures/modelling/refined_benchmark_comparison.png`
+
+## Run feature modelling
+
+Phase 4 tests whether lag features, rolling demand features, calendar features and available exogenous variables can improve over the year-over-year seasonal naive benchmark, especially on high-demand days.
+
+```bash
+python src/feature_models.py --target nd_mean
+```
+
+The full workflow is:
+
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+python src/statistical_models.py --target nd_mean
+python src/model_diagnostics.py --target nd_mean
+python src/feature_models.py --target nd_mean
+```
+
+Feature modelling outputs include:
+
+- `outputs/tables/feature_model_comparison.csv`
+- `outputs/tables/feature_model_regime_comparison.csv`
+- `outputs/tables/feature_model_forecasts.csv`
+- `outputs/tables/feature_model_importance.csv`
+- `outputs/tables/ridge_feature_coefficients.csv`
+- `outputs/figures/modelling/actual_vs_feature_model_forecasts.png`
+- `outputs/figures/modelling/feature_model_mape_comparison.png`
+- `outputs/figures/modelling/feature_model_regime_mape_comparison.png`
+- `outputs/figures/modelling/feature_importance_top20.png`
 
 ## Run the EDA notebook
 
