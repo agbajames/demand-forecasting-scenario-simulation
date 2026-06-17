@@ -159,7 +159,9 @@ def _plot_forecast_errors(forecasts: pd.DataFrame, output_path: Path) -> None:
         "holt_winters": forecasts["actual"] - forecasts["holt_winters_forecast"],
     }
     plt.figure(figsize=(10, 6))
-    plt.boxplot(error_columns.values(), labels=error_columns.keys(), showfliers=False)
+    labels = list(error_columns.keys())
+    plt.boxplot(list(error_columns.values()), showfliers=False)
+    plt.xticks(range(1, len(labels) + 1), labels)
     plt.axhline(0, color="black", linewidth=0.8)
     plt.title("Forecast errors by baseline model")
     plt.ylabel("actual - forecast")
