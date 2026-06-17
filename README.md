@@ -55,6 +55,7 @@ reports/
   eda_summary.md
 src/
   ingest_neso.py
+  prepare_data.py
   eda.py
   utils.py
 ```
@@ -89,6 +90,23 @@ Expected outputs include:
 - `data/raw/selected_resource_info.json` documenting the selected annual resources
 - annual raw downloaded NESO CSV files in `data/raw/`
 - a combined raw dataset such as `data/raw/neso_historic_demand_2019_2025.csv`
+
+## Run data preparation
+
+After ingestion and EDA timestamp checks, create the duplicate-timestamp audit and processed daily modelling dataset:
+
+```bash
+python src/prepare_data.py
+```
+
+Optional arguments:
+
+```bash
+python src/prepare_data.py --target nd
+python src/prepare_data.py --target tsd --output data/processed/daily_demand_2019_2025.csv
+```
+
+The preparation workflow preserves the raw annual CSVs and the combined raw half-hourly file. It uses `data/raw/selected_resource_info.json` to locate the combined raw dataset, validates or recreates `settlement_datetime`, writes `outputs/tables/duplicate_settlement_datetime_audit.csv`, resolves duplicated half-hourly timestamps with explicit aggregation rules, and saves `data/processed/daily_demand_2019_2025.csv`.
 
 ## Run the EDA notebook
 
