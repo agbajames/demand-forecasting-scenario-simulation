@@ -26,5 +26,7 @@ venv/
 !/outputs/figures/eda/.gitkeep
 /outputs/figures/modelling/*
 !/outputs/figures/modelling/.gitkeep
+/outputs/figures/scenario_simulation/*
+!/outputs/figures/scenario_simulation/.gitkeep
 /outputs/tables/*
 !/outputs/tables/.gitkeep
