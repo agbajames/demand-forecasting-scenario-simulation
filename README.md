@@ -20,7 +20,7 @@ NESO publishes Historic Demand Data as separate annual CSV resources rather than
 
 ## Current phase
 
-The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline.
+The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons.
 
 ## Planned workflow
 
@@ -32,7 +32,8 @@ The first phase focused on project setup, NESO data ingestion, data profiling an
 6. Produce written EDA conclusions and modelling recommendations.
 7. Establish baseline forecasting performance.
 8. Compare practical SARIMA and SARIMAX statistical models against the seasonal naive benchmark.
-9. In later phases, compare more advanced forecasting models and add scenario simulation.
+9. Diagnose model errors and refine benchmark understanding.
+10. In later phases, compare more advanced forecasting models and add scenario simulation.
 
 ## Future modelling plan
 
@@ -52,6 +53,7 @@ notebooks/
   01_deep_eda.ipynb
   02_baseline_forecasting.ipynb
   03_statistical_forecasting.ipynb
+  04_model_diagnostics.ipynb
 outputs/
   figures/eda/  # generated EDA charts
   figures/modelling/  # generated baseline forecasting charts
@@ -60,11 +62,13 @@ reports/
   eda_summary.md
   baseline_forecasting_summary.md
   statistical_forecasting_summary.md
+  model_diagnostics_summary.md
 src/
   ingest_neso.py
   prepare_data.py
   baseline_models.py
   statistical_models.py
+  model_diagnostics.py
   eda.py
   utils.py
 ```
@@ -164,6 +168,39 @@ Statistical forecasting outputs include:
 - `outputs/figures/modelling/actual_vs_statistical_forecasts.png`
 - `outputs/figures/modelling/statistical_forecast_errors.png`
 - `outputs/figures/modelling/model_mape_comparison.png`
+
+## Run model diagnostics
+
+Phase 3B diagnoses model errors and compares refined simple benchmarks. It does not add Prophet, simulation or deep learning.
+
+```bash
+python src/model_diagnostics.py --target nd_mean
+```
+
+The full workflow is:
+
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+python src/statistical_models.py --target nd_mean
+python src/model_diagnostics.py --target nd_mean
+```
+
+Diagnostic outputs include:
+
+- `outputs/tables/error_summary_by_month.csv`
+- `outputs/tables/error_summary_by_day_of_week.csv`
+- `outputs/tables/error_summary_by_demand_regime.csv`
+- `outputs/tables/incomplete_day_forecast_impact.csv`
+- `outputs/tables/statistical_residual_autocorrelation.csv`
+- `outputs/tables/exogenous_feature_correlation_with_targets.csv`
+- `outputs/tables/refined_benchmark_comparison.csv`
+- `outputs/figures/modelling/error_by_month.png`
+- `outputs/figures/modelling/error_by_demand_regime.png`
+- `outputs/figures/modelling/statistical_residual_autocorrelation.png`
+- `outputs/figures/modelling/exogenous_target_correlation.png`
+- `outputs/figures/modelling/refined_benchmark_comparison.png`
 
 ## Run the EDA notebook
 
