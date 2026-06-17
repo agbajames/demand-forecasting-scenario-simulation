@@ -20,7 +20,7 @@ NESO publishes Historic Demand Data as separate annual CSV resources rather than
 
 ## Current phase
 
-The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons. Phase 4 tests feature-engineered models for high-demand-aware forecasting. Phase 4B validates the forecast design so one-day-ahead operational results are not confused with strict multi-step forecasts.
+The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons. Phase 4 tests feature-engineered models for high-demand-aware forecasting. Phase 4B validates the forecast design so one-day-ahead operational results are not confused with strict multi-step forecasts. Phase 5 adds scenario simulation and capacity-pressure analysis.
 
 ## Planned workflow
 
@@ -35,15 +35,16 @@ The first phase focused on project setup, NESO data ingestion, data profiling an
 9. Diagnose model errors and refine benchmark understanding.
 10. Test lag, rolling, calendar and exogenous feature models with high-demand regime evaluation.
 11. Validate feature availability, leakage risk and strict recursive forecast design.
-12. In later phases, compare more advanced forecasting models and add scenario simulation.
+12. Simulate demand ranges and capacity-pressure risk under stress assumptions.
+13. In later phases, compare more advanced forecasting models and refine scenario assumptions.
 
 ## Future modelling plan
 
 Later phases may compare classical and modern time-series methods such as SARIMA/SARIMAX, Prophet, LSTM, Temporal Fusion Transformer, N-BEATS and Chronos. These models are intentionally not implemented in this phase. The first modelling phase should start with transparent statistical baselines and only add complex models if EDA shows that they are justified.
 
-## Future simulation plan
+## Scenario simulation plan
 
-A later Monte Carlo layer will simulate uncertainty around demand forecasts and estimate capacity-breach probability under selected capacity thresholds. Candidate assumptions may include residual error distributions, stress multipliers, seasonal volatility and demand shock scenarios, subject to findings from the EDA.
+The scenario simulation layer estimates demand ranges and capacity-threshold exceedance probabilities under selected stress assumptions. It uses the validated feature-model forecast as an operational one-day-ahead baseline, applies scenario uplifts and samples forecast residual uncertainty. This is a decision-support stress-testing layer, not a physical electricity grid dispatch model.
 
 ## Project structure
 
@@ -58,9 +59,11 @@ notebooks/
   04_model_diagnostics.ipynb
   05_feature_modelling.ipynb
   06_forecast_design_validation.ipynb
+  07_scenario_simulation.ipynb
 outputs/
   figures/eda/  # generated EDA charts
   figures/modelling/  # generated baseline forecasting charts
+  figures/scenario_simulation/  # generated scenario simulation charts
   tables/       # generated resource and EDA summary tables
 reports/
   eda_summary.md
@@ -69,6 +72,7 @@ reports/
   model_diagnostics_summary.md
   feature_modelling_summary.md
   forecast_design_validation_summary.md
+  scenario_simulation_summary.md
 src/
   ingest_neso.py
   prepare_data.py
@@ -77,6 +81,7 @@ src/
   model_diagnostics.py
   feature_models.py
   forecast_validation.py
+  scenario_simulation.py
   eda.py
   utils.py
 ```
@@ -279,6 +284,45 @@ Forecast-design validation outputs include:
 - `outputs/figures/modelling/strict_recursive_actual_vs_forecast.png`
 - `outputs/figures/modelling/strict_recursive_regime_mape_comparison.png`
 
+## Run scenario simulation
+
+Phase 5 estimates demand ranges and capacity-pressure risk under simplified stress assumptions. By default, the base forecast is `gradient_boosting_forecast` from `outputs/tables/feature_model_forecasts.csv`, which should be interpreted as an operational one-day-ahead forecast baseline when recent actual demand history is available.
+
+```bash
+python src/scenario_simulation.py --target nd_mean --n-simulations 1000
+```
+
+The default capacity threshold is the 95th percentile of actual `nd_mean` in the training period before 2025-01-01. A fixed threshold can be supplied if a business capacity limit is available:
+
+```bash
+python src/scenario_simulation.py --target nd_mean --n-simulations 1000 --capacity-threshold 42000
+```
+
+The full workflow is:
+
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+python src/statistical_models.py --target nd_mean
+python src/model_diagnostics.py --target nd_mean
+python src/feature_models.py --target nd_mean
+python src/forecast_validation.py --target nd_mean
+python src/scenario_simulation.py --target nd_mean --n-simulations 1000
+```
+
+Scenario simulation outputs include:
+
+- `outputs/tables/scenario_daily_simulation_summary.csv`
+- `outputs/tables/scenario_capacity_pressure_summary.csv`
+- `outputs/tables/capacity_threshold_documentation.csv`
+- `outputs/tables/scenario_simulation_method_summary.csv`
+- `outputs/figures/scenario_simulation/scenario_exceedance_probability.png`
+- `outputs/figures/scenario_simulation/scenario_simulated_demand_ranges.png`
+- `outputs/figures/scenario_simulation/scenario_capacity_pressure_summary.png`
+
+The scenario engine is a decision-support stress-testing layer. It does not predict actual future grid stress with certainty, and it is not a physical grid dispatch model.
+
 ## Run the EDA notebook
 
 Start Jupyter from the repository root:
@@ -294,5 +338,5 @@ Then run the notebook cells in order after the ingestion script has completed. T
 - Annual NESO resource detection uses the published name and URL patterns and may require manual confirmation if the package structure changes.
 - EDA recommendations are provisional until the selected annual raw files and combined dataset have been downloaded and profiled.
 - Weather, holidays and market variables are not yet integrated.
-- No forecasting model or simulation layer is included in this phase.
+- Scenario simulation uses simplified stress assumptions and should not be treated as a substitute for proper forecast evaluation or physical grid modelling.
 - Raw data files can be large and are not committed by default.
