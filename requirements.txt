@@ -1,0 +1,10 @@
+pandas
+numpy
+requests
+matplotlib
+seaborn
+statsmodels
+scipy
+jupyter
+notebook
+python-dotenv

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Generated data extracts and large outputs
+/data/raw/*
+!/data/raw/.gitkeep
+!/data/raw/neso_package_metadata.json
+!/data/raw/selected_resource_info.json
+/data/processed/*
+!/data/processed/.gitkeep
+
+# Generated EDA artefacts
+/outputs/figures/eda/*
+!/outputs/figures/eda/.gitkeep
+/outputs/tables/*
+!/outputs/tables/.gitkeep
