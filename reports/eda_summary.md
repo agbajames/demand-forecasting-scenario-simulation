@@ -2,9 +2,11 @@
 
 ## Executive Summary
 
-The EDA was run against the combined NESO Historic Demand dataset covering 2019-2025. The dataset contains 122,736 rows and 23 columns, representing half-hourly settlement-period observations rather than one observation per calendar date.
+The EDA was run against the combined NESO Historic Demand dataset covering 2019-2025. After creating `settlement_datetime`, the dataset contains 122,736 rows and 24 columns, representing half-hourly settlement-period observations rather than one observation per calendar date.
 
-The main data preparation finding is that `settlement_date` alone is not a valid modelling timestamp. Repeated `settlement_date` values are expected because each day contains multiple settlement periods. The correct timestamp for time-series analysis is `settlement_datetime`, created from `settlement_date` and `settlement_period`.
+The previous duplicate issue caused by using `settlement_date` alone has been resolved. Repeated `settlement_date` values are expected because each day contains multiple settlement periods. The correct timestamp for time-series analysis is `settlement_datetime`, created from `settlement_date` and `settlement_period`.
+
+The rerun EDA found 28 rows with duplicated `settlement_datetime` values. These rows should be audited and resolved explicitly before daily modelling data is created.
 
 This phase remains limited to data ingestion, profiling and EDA. No forecasting model, Prophet, SARIMAX or simulation layer has been added.
 
@@ -18,7 +20,9 @@ The current combined dataset covers selected years 2019-2025 and contains half-h
 
 The local EDA found no missing values in the main candidate demand target columns: `nd`, `tsd` and `england_wales_demand`.
 
-Duplicate `settlement_date` values are expected and should not be treated as duplicate observations. Duplicate timestamp checks should instead use `settlement_datetime`, which combines settlement date and period into a half-hourly time index.
+Duplicate `settlement_date` values are expected and should not be treated as duplicate observations. Duplicate timestamp checks now use `settlement_datetime`, which combines settlement date and period into a half-hourly time index.
+
+The remaining duplicate `settlement_datetime` rows total 28. They are audited in `outputs/tables/duplicate_settlement_datetime_audit.csv`. They are then resolved by aggregating records at the duplicate timestamp: demand, generation, capacity and interconnector-flow values are averaged, while timestamp metadata and categorical fields use the first non-null value. A `duplicate_count` indicator is retained so the resolution is transparent.
 
 No zero or negative values were found in the provisional target `nd`. IQR screening detected 226 high-demand observations. These should be documented and monitored in later modelling rather than removed automatically.
 
@@ -32,7 +36,9 @@ The candidate demand targets are:
 - `tsd`
 - `england_wales_demand`
 
-The current recommendation is to choose either `nd` or `tsd`, depending on the operational question being modelled. `nd` is a strong candidate for a national demand forecasting target and has no missing or non-positive values in the current EDA. `tsd` may be preferable if the intended use case is closer to transmission-system demand and operational balancing requirements.
+The current half-hourly target recommendation is to choose either `nd` or `tsd`, depending on the operational question being modelled. `nd` is a strong candidate for a national demand forecasting target and has no missing or non-positive values in the current EDA. `tsd` may be preferable if the intended use case is closer to transmission-system demand and operational balancing requirements.
+
+For the first daily modelling dataset, `nd_mean` is recommended as the baseline forecasting target. `nd_peak` should be retained for capacity-pressure and later scenario analysis. `tsd_mean`, `tsd_peak`, `england_wales_demand_mean` and `england_wales_demand_peak` should be retained as alternative target definitions for sensitivity checks.
 
 `england_wales_demand` is also a legitimate demand series, but it is geographically narrower and may be less suitable if the project objective is GB-wide operational demand planning.
 
@@ -42,7 +48,9 @@ Embedded wind generation, embedded wind capacity, embedded solar generation and 
 
 The native NESO data is half-hourly. `settlement_datetime` should be used as the modelling timestamp for all native-frequency analysis.
 
-Daily aggregation may still be a practical first modelling frequency. It can reduce half-hourly volatility and computational complexity while preserving major weekly, seasonal and annual demand patterns. The raw half-hourly data should remain available so later phases can compare daily baselines with higher-resolution modelling if needed.
+Daily aggregation is a practical first modelling frequency. It can reduce half-hourly volatility and computational complexity while preserving major weekly, seasonal and annual demand patterns. The raw half-hourly data should remain available so later phases can compare daily baselines with higher-resolution modelling if needed.
+
+The modelling-ready daily dataset is generated by `src/prepare_data.py` and saved as `data/processed/daily_demand_2019_2025.csv`. It includes daily means and peaks for the main demand target candidates, daily means for renewable and flow-style external variables where present, calendar features, settlement-period coverage counts, expected settlement-period counts, a coverage ratio and an incomplete-day flag.
 
 ## Key Seasonal Patterns
 
@@ -100,7 +108,8 @@ No Monte Carlo simulation has been implemented in this phase.
 ## Next Steps
 
 1. Re-run `python src/ingest_neso.py` if the raw annual files or combined dataset need refreshing.
-2. Re-run `notebooks/01_deep_eda.ipynb` from top to bottom so the notebook uses `settlement_datetime`.
-3. Confirm the target choice between `nd` and `tsd`.
-4. Keep outliers and COVID-era rows in the dataset, but document their effect on model validation.
-5. Build baseline forecasting models only after the corrected EDA outputs are reviewed.
+2. Run `python src/prepare_data.py` to generate the duplicate timestamp audit and daily processed dataset.
+3. Re-run `notebooks/01_deep_eda.ipynb` from top to bottom if the raw data changes.
+4. Use `nd_mean` as the first daily baseline target, while retaining `nd_peak`, `tsd_*` and `england_wales_demand_*` for sensitivity and capacity-pressure analysis.
+5. Keep outliers, incomplete days and COVID-era rows in the dataset, but document their effect on model validation.
+6. Build baseline forecasting models only after the corrected EDA and data-preparation outputs are reviewed.
