@@ -1,57 +1,139 @@
-# Demand Forecasting & Scenario Simulation – Python Time-Series Modelling
+# Demand Forecasting & Scenario Simulation - Python
 
-This repository is an **applied data science project** using real Great Britain electricity demand data to support operational demand forecasting and later scenario simulation.
+## Executive Summary
 
-## Business problem
+This applied data science project builds a complete electricity demand forecasting and scenario simulation workflow using NESO Historic Demand Data for Great Britain. It moves from ingestion and exploratory data analysis through data preparation, benchmark forecasting, SARIMA/SARIMAX statistical modelling, feature-engineered operational forecasting, forecast-design validation and capacity-pressure scenario simulation.
 
-Electricity system operators, suppliers, traders and planners need credible estimates of future demand to make operational decisions about generation scheduling, reserve margins, balancing actions and capacity risk. Demand varies by time of day, weekday, season, weather-linked behaviour, holidays, embedded generation and exceptional shocks. Poor demand forecasts can increase balancing costs, reduce resilience and make capacity planning less reliable.
+The strongest operational result is a feature-engineered Gradient Boosting model with 3.09% MAPE on the 2025 test period. The project also explicitly validates the forecast design: this result is an operational one-day-ahead forecast, not a 365-day-ahead forecast from 1 January 2025. For strict long-horizon recursive forecasting, the year-over-year seasonal naive benchmark remains slightly stronger overall.
 
-## Why demand forecasting is an operational planning problem
+The scenario layer uses the validated operational forecast as a stress-testing baseline. Using the 95th percentile of training-period demand as a capacity-pressure threshold, the simulation estimated around 7 expected exceedance days under the baseline scenario, rising to around 54 expected exceedance days under a combined stress scenario. Highest-risk dates clustered around winter high-demand periods.
 
-Electricity must be balanced continuously. Unlike many products, large volumes of power cannot be stored cheaply at grid scale, so shortfalls or surpluses have immediate operational consequences. A practical forecasting workflow therefore needs to identify the correct target variable, understand the time frequency, quantify data quality issues and capture repeatable demand patterns before any forecasting model is trained.
+## Problem Framing
 
-## Data source
+Electricity demand forecasting matters because power systems must balance supply and demand continuously. Better forecasts support generation scheduling, reserve planning, balancing decisions, capacity-risk monitoring and operational resilience.
 
-The primary source is the NESO Historic Demand Data package exposed through the CKAN API:
+High-demand and capacity-pressure days matter because errors during peak conditions are more consequential than errors on normal days. A model that performs well on average can still be operationally weak if it misses winter peaks or high-demand regimes.
+
+Benchmark discipline is central to the project. Naive and seasonal naive models are simple, but they provide a hard-to-beat reference point. This project keeps the seasonal naive benchmark when SARIMA/SARIMAX models fail to improve performance, rather than overstating model complexity.
+
+Scenario simulation adds decision-support value by translating forecast uncertainty and stress assumptions into capacity-threshold exceedance probabilities. It does not replace forecast evaluation and it is not a physical grid-dispatch model.
+
+## Data Source
+
+The project uses NESO Historic Demand Data:
 
 <https://api.neso.energy/api/3/action/datapackage_show?id=historic-demand-data>
 
-NESO publishes Historic Demand Data as separate annual CSV resources rather than one single historic file. The ingestion script saves the package metadata, creates a resource inventory, identifies annual historic demand CSVs, downloads the selected year range and creates a combined raw CSV for EDA.
+NESO publishes the data as annual CSV resources. The ingestion layer combines annual files for 2019-2025 into a raw half-hourly settlement-period dataset. The local EDA run confirmed:
 
-## Current phase
+- raw combined half-hourly dataset: 122,736 rows;
+- processed daily modelling dataset: 2,557 rows and 32 columns;
+- main modelling target: `nd_mean`;
+- duplicate settlement timestamp audit: 28 rows across 14 timestamp groups;
+- incomplete test day: 2025-10-26, with `coverage_ratio` 0.96.
 
-The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline. Phase 3B diagnoses why the statistical models did not beat the benchmark and refines simple benchmark comparisons. Phase 4 tests feature-engineered models for high-demand-aware forecasting. Phase 4B validates the forecast design so one-day-ahead operational results are not confused with strict multi-step forecasts. Phase 5 adds scenario simulation and capacity-pressure analysis.
+Raw and processed data outputs are generated locally and are not committed to Git.
 
-## Planned workflow
+## Project Workflow
 
-1. Ingest NESO package metadata and annual raw demand data.
-2. Profile the raw dataset structure and data quality.
-3. Discover actual date/time, demand and external-variable columns from the data.
-4. Analyse missingness, duplicates, gaps, outliers and shocks.
-5. Identify seasonal patterns and a suitable modelling frequency.
-6. Produce written EDA conclusions and modelling recommendations.
-7. Establish baseline forecasting performance.
-8. Compare practical SARIMA and SARIMAX statistical models against the seasonal naive benchmark.
-9. Diagnose model errors and refine benchmark understanding.
-10. Test lag, rolling, calendar and exogenous feature models with high-demand regime evaluation.
-11. Validate feature availability, leakage risk and strict recursive forecast design.
-12. Simulate demand ranges and capacity-pressure risk under stress assumptions.
-13. In later phases, compare more advanced forecasting models and refine scenario assumptions.
+Run the workflow from the repository root:
 
-## Future modelling plan
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+python src/statistical_models.py --target nd_mean
+python src/model_diagnostics.py --target nd_mean
+python src/feature_models.py --target nd_mean
+python src/forecast_validation.py --target nd_mean
+python src/scenario_simulation.py --target nd_mean --n-simulations 1000
+```
 
-Later phases may compare classical and modern time-series methods such as SARIMA/SARIMAX, Prophet, LSTM, Temporal Fusion Transformer, N-BEATS and Chronos. These models are intentionally not implemented in this phase. The first modelling phase should start with transparent statistical baselines and only add complex models if EDA shows that they are justified.
+## Key Results
 
-## Scenario simulation plan
+### Baseline and Statistical Models
 
-The scenario simulation layer estimates demand ranges and capacity-threshold exceedance probabilities under selected stress assumptions. It uses the validated feature-model forecast as an operational one-day-ahead baseline, applies scenario uplifts and samples forecast residual uncertainty. This is a decision-support stress-testing layer, not a physical electricity grid dispatch model.
+2025 test-period results on `nd_mean`:
 
-## Project structure
+| Model | MAE | RMSE | MAPE |
+|---|---:|---:|---:|
+| seasonal_naive | 2,076.58 | 2,648.82 | 7.93% |
+| SARIMAX | 2,868.56 | 3,748.90 | 10.13% |
+| SARIMA | 3,728.39 | 4,408.46 | 13.93% |
+| naive | 3,797.90 | 4,641.25 | 14.24% |
+
+SARIMAX improved over SARIMA and naive forecasts, but it did not beat the seasonal naive benchmark.
+
+### Feature-Engineered Operational One-Day-Ahead Models
+
+2025 test-period operational results on `nd_mean`:
+
+| Model | MAE | RMSE | MAPE |
+|---|---:|---:|---:|
+| Gradient Boosting | 810.15 | 1,046.99 | 3.09% |
+| Random Forest | 817.82 | 1,076.69 | 3.17% |
+| Ridge | 965.24 | 1,208.91 | 3.79% |
+| seasonal_naive benchmark | 2,076.58 | 2,648.82 | 7.93% |
+
+High-demand regime results:
+
+| Model | High-Demand MAPE |
+|---|---:|
+| Random Forest | 2.89% |
+| Gradient Boosting | 3.41% |
+| seasonal_naive | 9.54% |
+| SARIMAX | 19.71% |
+
+### Forecast-Design Validation
+
+| Forecast Design | Model | MAPE | Interpretation |
+|---|---|---:|---|
+| Operational one-day-ahead | Gradient Boosting | 3.09% | Uses actual demand history up to the previous day. Valid for next-day operations. |
+| Strict recursive | Gradient Boosting, observed exogenous variables dropped | 8.15% | Future lag features are generated recursively from model forecasts. |
+| Benchmark | seasonal_naive | 7.93% | Slightly stronger than strict recursive Gradient Boosting overall. |
+
+### Scenario Simulation
+
+Capacity threshold: 35,037.93, defined as the 95th percentile of training-period actual `nd_mean` demand.
+
+| Scenario | Stress Assumption | Expected Exceedance Days | Notes |
+|---|---|---:|---|
+| baseline | No systematic uplift; residual uncertainty only | 7.07 | Reference scenario. |
+| low_renewable_stress | Simplified +2% proxy uplift on low embedded wind/solar days | See `outputs/tables/scenario_capacity_pressure_summary.csv` | Proxy assumption, not a physical renewable model. |
+| high_demand_stress | +5% uplift on high-demand or peak-season days | See `outputs/tables/scenario_capacity_pressure_summary.csv` | Tests peak-demand sensitivity. |
+| winter_peak_stress | +7% uplift on winter or peak-season days | See `outputs/tables/scenario_capacity_pressure_summary.csv` | Focuses on winter capacity pressure. |
+| combined_stress | Combined stress assumptions with a 12% uplift cap | 54.04 | Simulated peak p50: 41,028.83; simulated peak p95: 42,738.07. |
+
+Highest-risk periods clustered around winter high-demand days, especially January and February 2025.
+
+## Forecast-Design Caveat
+
+The 3.09% MAPE Gradient Boosting result is an operational one-day-ahead result. It uses recent actual demand history, which is valid for next-day operational forecasting because yesterday and earlier demand values are known at forecast time.
+
+It is not a 365-day-ahead forecast made from 1 January 2025. Strict recursive validation was added to avoid leakage and overclaiming. In strict recursive mode, future lag and rolling features are generated from model forecasts rather than actual future target values. Under that stricter long-horizon design, seasonal naive remains slightly stronger overall than Gradient Boosting.
+
+## Scenario Simulation Interpretation
+
+Using the 95th percentile of training-period demand as a capacity-pressure threshold, the scenario simulation estimated around 7 expected exceedance days under the baseline scenario, rising to around 54 expected exceedance days under a combined stress scenario. Highest-risk dates clustered around winter high-demand periods.
+
+The simulation is a decision-support stress-testing layer. It estimates demand ranges and threshold exceedance probabilities under simplified assumptions; it does not predict actual future grid stress with certainty.
+
+## Limitations
+
+- Scenario assumptions are simplified stress-test assumptions.
+- This is not a physical grid-dispatch model.
+- Observed exogenous variables must be known, forecasted or scenario-specified for future deployment.
+- Strict recursive feature models do not beat seasonal naive overall in the current validation.
+- Weather variables, holiday effects and real operational capacity margins are not yet integrated.
+- Further work could add Prophet, weather variables, holiday features, hyperparameter tuning and probabilistic calibration.
+- The project is not production-ready; it is an applied analytics workflow and portfolio project.
+
+## Repository Structure
 
 ```text
 data/
-  raw/          # raw metadata and downloaded source files
-  processed/    # future cleaned modelling-ready data
+  raw/                 # generated raw metadata and NESO source files, ignored where appropriate
+  processed/           # generated modelling-ready datasets, ignored where appropriate
 notebooks/
   01_deep_eda.ipynb
   02_baseline_forecasting.ipynb
@@ -61,10 +143,10 @@ notebooks/
   06_forecast_design_validation.ipynb
   07_scenario_simulation.ipynb
 outputs/
-  figures/eda/  # generated EDA charts
-  figures/modelling/  # generated baseline forecasting charts
-  figures/scenario_simulation/  # generated scenario simulation charts
-  tables/       # generated resource and EDA summary tables
+  figures/eda/
+  figures/modelling/
+  figures/scenario_simulation/
+  tables/
 reports/
   eda_summary.md
   baseline_forecasting_summary.md
@@ -73,6 +155,9 @@ reports/
   feature_modelling_summary.md
   forecast_design_validation_summary.md
   scenario_simulation_summary.md
+  final_project_summary.md
+  results_index.md
+  project_card.md
 src/
   ingest_neso.py
   prepare_data.py
@@ -86,7 +171,9 @@ src/
   utils.py
 ```
 
-## Setup
+## Reproducibility
+
+Create and activate a Python environment, then install dependencies:
 
 ```bash
 python -m venv .venv
@@ -94,211 +181,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Run ingestion
+On Windows PowerShell, activate with:
 
-```bash
-python src/ingest_neso.py
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
-By default, ingestion downloads recent complete annual files from 2019 to the latest complete year available. With the current NESO resource list and a 2026 run date, this means 2019-2025; the partial 2026 resource is excluded unless explicitly requested.
-
-Custom year ranges can be supplied from the command line:
-
-```bash
-python src/ingest_neso.py --start-year 2001 --end-year 2025
-python src/ingest_neso.py --start-year 2024 --end-year 2026 --include-partial-current-year
-```
-
-Expected outputs include:
-
-- `data/raw/neso_package_metadata.json`
-- `outputs/tables/neso_resource_inventory.csv`
-- `data/raw/selected_resource_info.json` documenting the selected annual resources
-- annual raw downloaded NESO CSV files in `data/raw/`
-- a combined raw dataset such as `data/raw/neso_historic_demand_2019_2025.csv`
-
-## Run data preparation
-
-After ingestion and EDA timestamp checks, create the duplicate-timestamp audit and processed daily modelling dataset:
-
-```bash
-python src/prepare_data.py
-```
-
-Optional arguments:
-
-```bash
-python src/prepare_data.py --target nd
-python src/prepare_data.py --target tsd --output data/processed/daily_demand_2019_2025.csv
-```
-
-The preparation workflow preserves the raw annual CSVs and the combined raw half-hourly file. It uses `data/raw/selected_resource_info.json` to locate the combined raw dataset, validates or recreates `settlement_datetime`, writes `outputs/tables/duplicate_settlement_datetime_audit.csv`, resolves duplicated half-hourly timestamps with explicit aggregation rules, and saves `data/processed/daily_demand_2019_2025.csv`.
-
-## Run baseline forecasting
-
-Phase 2 establishes baseline forecasting performance on the processed daily dataset before SARIMAX, Prophet, machine learning or simulation models are considered.
-
-```bash
-python src/baseline_models.py --target nd_mean
-```
-
-The full current workflow is:
-
-```bash
-python src/ingest_neso.py
-python src/prepare_data.py
-python src/baseline_models.py --target nd_mean
-```
-
-Baseline outputs include:
-
-- `outputs/tables/baseline_model_comparison.csv`
-- `outputs/tables/baseline_forecasts.csv`
-- `outputs/figures/modelling/actual_vs_baseline_forecasts.png`
-- `outputs/figures/modelling/forecast_errors_by_model.png`
-
-## Run statistical forecasting
-
-Phase 3 compares SARIMA and SARIMAX against the seasonal naive benchmark from Phase 2. Do not describe SARIMA/SARIMAX as an improvement unless the saved metrics beat seasonal naive on the same 2025 test period.
-
-```bash
-python src/statistical_models.py --target nd_mean
-```
-
-The full modelling workflow is:
-
-```bash
-python src/ingest_neso.py
-python src/prepare_data.py
-python src/baseline_models.py --target nd_mean
-python src/statistical_models.py --target nd_mean
-```
-
-Statistical forecasting outputs include:
-
-- `outputs/tables/statistical_model_comparison.csv`
-- `outputs/tables/statistical_forecasts.csv`
-- `outputs/figures/modelling/actual_vs_statistical_forecasts.png`
-- `outputs/figures/modelling/statistical_forecast_errors.png`
-- `outputs/figures/modelling/model_mape_comparison.png`
-
-## Run model diagnostics
-
-Phase 3B diagnoses model errors and compares refined simple benchmarks. It does not add Prophet, simulation or deep learning.
-
-```bash
-python src/model_diagnostics.py --target nd_mean
-```
-
-The full workflow is:
-
-```bash
-python src/ingest_neso.py
-python src/prepare_data.py
-python src/baseline_models.py --target nd_mean
-python src/statistical_models.py --target nd_mean
-python src/model_diagnostics.py --target nd_mean
-```
-
-Diagnostic outputs include:
-
-- `outputs/tables/error_summary_by_month.csv`
-- `outputs/tables/error_summary_by_day_of_week.csv`
-- `outputs/tables/error_summary_by_demand_regime.csv`
-- `outputs/tables/incomplete_day_forecast_impact.csv`
-- `outputs/tables/statistical_residual_autocorrelation.csv`
-- `outputs/tables/exogenous_feature_correlation_with_targets.csv`
-- `outputs/tables/refined_benchmark_comparison.csv`
-- `outputs/figures/modelling/error_by_month.png`
-- `outputs/figures/modelling/error_by_demand_regime.png`
-- `outputs/figures/modelling/statistical_residual_autocorrelation.png`
-- `outputs/figures/modelling/exogenous_target_correlation.png`
-- `outputs/figures/modelling/refined_benchmark_comparison.png`
-
-## Run feature modelling
-
-Phase 4 tests whether lag features, rolling demand features, calendar features and available exogenous variables can improve over the year-over-year seasonal naive benchmark, especially on high-demand days.
-
-```bash
-python src/feature_models.py --target nd_mean
-```
-
-The full workflow is:
-
-```bash
-python src/ingest_neso.py
-python src/prepare_data.py
-python src/baseline_models.py --target nd_mean
-python src/statistical_models.py --target nd_mean
-python src/model_diagnostics.py --target nd_mean
-python src/feature_models.py --target nd_mean
-```
-
-Feature modelling outputs include:
-
-- `outputs/tables/feature_model_comparison.csv`
-- `outputs/tables/feature_model_regime_comparison.csv`
-- `outputs/tables/feature_model_forecasts.csv`
-- `outputs/tables/feature_model_importance.csv`
-- `outputs/tables/ridge_feature_coefficients.csv`
-- `outputs/figures/modelling/actual_vs_feature_model_forecasts.png`
-- `outputs/figures/modelling/feature_model_mape_comparison.png`
-- `outputs/figures/modelling/feature_model_regime_mape_comparison.png`
-- `outputs/figures/modelling/feature_importance_top20.png`
-
-## Validate forecast design
-
-Phase 4B separates two forecast-design questions. The Phase 4 feature-model results should be described as operational one-day-ahead forecasts because each 2025 forecast can use actual demand observed up to the previous day. A strict multi-step forecast must recursively generate lag and rolling target features after the first test day rather than using actual future target values. Exogenous variables must also be known, forecasted or scenario-specified at forecast time; otherwise they are retrospective inputs.
-
-```bash
-python src/forecast_validation.py --target nd_mean
-```
-
-Optional strict recursive exogenous modes:
-
-```bash
-python src/forecast_validation.py --target nd_mean --strict-exog-mode drop
-python src/forecast_validation.py --target nd_mean --strict-exog-mode actual
-```
-
-The full modelling workflow is:
-
-```bash
-python src/ingest_neso.py
-python src/prepare_data.py
-python src/baseline_models.py --target nd_mean
-python src/statistical_models.py --target nd_mean
-python src/model_diagnostics.py --target nd_mean
-python src/feature_models.py --target nd_mean
-python src/forecast_validation.py --target nd_mean
-```
-
-Forecast-design validation outputs include:
-
-- `outputs/tables/feature_availability_audit.csv`
-- `outputs/tables/operational_forecast_design_summary.csv`
-- `outputs/tables/strict_recursive_feature_forecasts.csv`
-- `outputs/tables/forecast_design_comparison.csv`
-- `outputs/tables/strict_recursive_regime_comparison.csv`
-- `outputs/figures/modelling/forecast_design_mape_comparison.png`
-- `outputs/figures/modelling/strict_recursive_actual_vs_forecast.png`
-- `outputs/figures/modelling/strict_recursive_regime_mape_comparison.png`
-
-## Run scenario simulation
-
-Phase 5 estimates demand ranges and capacity-pressure risk under simplified stress assumptions. By default, the base forecast is `gradient_boosting_forecast` from `outputs/tables/feature_model_forecasts.csv`, which should be interpreted as an operational one-day-ahead forecast baseline when recent actual demand history is available.
-
-```bash
-python src/scenario_simulation.py --target nd_mean --n-simulations 1000
-```
-
-The default capacity threshold is the 95th percentile of actual `nd_mean` in the training period before 2025-01-01. A fixed threshold can be supplied if a business capacity limit is available:
-
-```bash
-python src/scenario_simulation.py --target nd_mean --n-simulations 1000 --capacity-threshold 42000
-```
-
-The full workflow is:
+Then run:
 
 ```bash
 python src/ingest_neso.py
@@ -311,32 +200,4 @@ python src/forecast_validation.py --target nd_mean
 python src/scenario_simulation.py --target nd_mean --n-simulations 1000
 ```
 
-Scenario simulation outputs include:
-
-- `outputs/tables/scenario_daily_simulation_summary.csv`
-- `outputs/tables/scenario_capacity_pressure_summary.csv`
-- `outputs/tables/capacity_threshold_documentation.csv`
-- `outputs/tables/scenario_simulation_method_summary.csv`
-- `outputs/figures/scenario_simulation/scenario_exceedance_probability.png`
-- `outputs/figures/scenario_simulation/scenario_simulated_demand_ranges.png`
-- `outputs/figures/scenario_simulation/scenario_capacity_pressure_summary.png`
-
-The scenario engine is a decision-support stress-testing layer. It does not predict actual future grid stress with certainty, and it is not a physical grid dispatch model.
-
-## Run the EDA notebook
-
-Start Jupyter from the repository root:
-
-```bash
-jupyter notebook notebooks/01_deep_eda.ipynb
-```
-
-Then run the notebook cells in order after the ingestion script has completed. The notebook is designed to discover the actual NESO columns rather than assuming fixed names.
-
-## Project limitations
-
-- Annual NESO resource detection uses the published name and URL patterns and may require manual confirmation if the package structure changes.
-- EDA recommendations are provisional until the selected annual raw files and combined dataset have been downloaded and profiled.
-- Weather, holidays and market variables are not yet integrated.
-- Scenario simulation uses simplified stress assumptions and should not be treated as a substitute for proper forecast evaluation or physical grid modelling.
-- Raw data files can be large and are not committed by default.
+Generated raw data, processed data, tables and figures are produced locally and ignored by Git where appropriate.
