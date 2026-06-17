@@ -20,7 +20,7 @@ NESO publishes Historic Demand Data as separate annual CSV resources rather than
 
 ## Current phase
 
-The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 establishes clean baseline forecasting performance before any more advanced modelling is introduced.
+The first phase focused on project setup, NESO data ingestion, data profiling and deep exploratory data analysis. Phase 2 established clean baseline forecasting performance before any more advanced modelling was introduced. Phase 3 adds practical SARIMA and SARIMAX statistical forecasting, benchmarked against the seasonal naive baseline.
 
 ## Planned workflow
 
@@ -31,7 +31,8 @@ The first phase focused on project setup, NESO data ingestion, data profiling an
 5. Identify seasonal patterns and a suitable modelling frequency.
 6. Produce written EDA conclusions and modelling recommendations.
 7. Establish baseline forecasting performance.
-8. In later phases, compare more advanced forecasting models and add scenario simulation.
+8. Compare practical SARIMA and SARIMAX statistical models against the seasonal naive benchmark.
+9. In later phases, compare more advanced forecasting models and add scenario simulation.
 
 ## Future modelling plan
 
@@ -50,6 +51,7 @@ data/
 notebooks/
   01_deep_eda.ipynb
   02_baseline_forecasting.ipynb
+  03_statistical_forecasting.ipynb
 outputs/
   figures/eda/  # generated EDA charts
   figures/modelling/  # generated baseline forecasting charts
@@ -57,10 +59,12 @@ outputs/
 reports/
   eda_summary.md
   baseline_forecasting_summary.md
+  statistical_forecasting_summary.md
 src/
   ingest_neso.py
   prepare_data.py
   baseline_models.py
+  statistical_models.py
   eda.py
   utils.py
 ```
@@ -135,6 +139,31 @@ Baseline outputs include:
 - `outputs/tables/baseline_forecasts.csv`
 - `outputs/figures/modelling/actual_vs_baseline_forecasts.png`
 - `outputs/figures/modelling/forecast_errors_by_model.png`
+
+## Run statistical forecasting
+
+Phase 3 compares SARIMA and SARIMAX against the seasonal naive benchmark from Phase 2. Do not describe SARIMA/SARIMAX as an improvement unless the saved metrics beat seasonal naive on the same 2025 test period.
+
+```bash
+python src/statistical_models.py --target nd_mean
+```
+
+The full modelling workflow is:
+
+```bash
+python src/ingest_neso.py
+python src/prepare_data.py
+python src/baseline_models.py --target nd_mean
+python src/statistical_models.py --target nd_mean
+```
+
+Statistical forecasting outputs include:
+
+- `outputs/tables/statistical_model_comparison.csv`
+- `outputs/tables/statistical_forecasts.csv`
+- `outputs/figures/modelling/actual_vs_statistical_forecasts.png`
+- `outputs/figures/modelling/statistical_forecast_errors.png`
+- `outputs/figures/modelling/model_mape_comparison.png`
 
 ## Run the EDA notebook
 
